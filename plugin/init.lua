@@ -4,44 +4,26 @@ local wezterm = require("wezterm")
 ---@field encryption encryption_opts
 local pub = {}
 
-local plugin_dir
-
 --- checks if the user is on windows
 local is_windows = wezterm.target_triple == "x86_64-pc-windows-msvc"
 local separator = is_windows and "\\" or "/"
 
---- Checks if the plugin directory exists
---- @return boolean
-local function directory_exists(path)
-	local success, result = pcall(wezterm.read_dir, plugin_dir .. path)
-	return success and result
-end
-
---- Returns the name of the package, used when requiring modules
+--- Returns the os-specific default local path to store session
 --- @return string
-function pub.get_require_path()
-	local path1 = "httpssCssZssZsgithubsDscomsZsMLFlexersZsresurrectsDswezterm"
-	local path2 = "httpssCssZssZsgithubsDscomsZsMLFlexersZsresurrectsDsweztermsZs"
-	return directory_exists(path2) and path2 or path1
+function pub.get_default_session_path()
+	local pathstr = ""
+	if is_windows then
+		pathstr = os.getenv("LOCALAPPDATA")
+	else
+		pathstr = os.getenv("XDG_DATA_HOME") or os.getenv("HOME") .. separator .. ".local" .. separator .. "share"
+	end
+	return pathstr .. separator .. "wez-resurrect" .. separator
 end
 
---- adds the wezterm plugin directory to the lua path
-local function enable_sub_modules()
-	plugin_dir = wezterm.plugin.list()[1].plugin_dir:gsub(separator .. "[^" .. separator .. "]*$", "")
-	package.path = package.path
-		.. ";"
-		.. plugin_dir
-		.. separator
-		.. pub.get_require_path()
-		.. separator
-		.. "plugin"
-		.. separator
-		.. "?.lua"
-end
+-- Replace the existing package.path to support all other ?.lua files in this directory
+package.path = package.path .. ";" .. (select(2, ...):gsub("init.lua$", "?.lua"))
 
-enable_sub_modules()
-
-pub.save_state_dir = plugin_dir .. separator .. pub.get_require_path() .. separator .. "state" .. separator
+pub.save_state_dir = pub.get_default_session_path()
 
 ---Changes the directory to save the state to
 ---@param directory string
@@ -57,7 +39,10 @@ local function get_file_path(file_name, type, opt_name)
 	if opt_name then
 		file_name = opt_name
 	end
-	return string.format("%s%s" .. separator .. "%s.json", pub.save_state_dir, type, file_name:gsub(separator, "+"))
+	local xstr =
+		string.format("%s%s" .. separator .. "%s.json", pub.save_state_dir, type, file_name:gsub(separator, "+"))
+	print(" ** " .. xstr)
+	return xstr
 end
 
 ---executes cmd and passes input to stdin
